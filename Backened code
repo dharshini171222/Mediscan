@@ -1,0 +1,55 @@
+from flask import Flask, request, jsonify
+from flask_cors import CORS
+import tensorflow as tf
+import numpy as np
+from PIL import Image
+import io
+import random
+
+app = Flask(__name__)
+CORS(app)  # Enable CORS for frontend-backend communication
+
+# Load the trained model
+MODEL_PATH = "inceptionv3_model.h5"
+model = tf.keras.models.load_model(MODEL_PATH)
+
+# Define class names (modify based on your dataset)
+CLASS_NAMES = ["Diabetic Retinopathy", "Glaucoma", "Normal", "Cataract"]
+
+def preprocess_image(image):
+    """Preprocess the uploaded image for model prediction."""
+    image = image.resize((224, 224))  # Resize to match model input
+    image = np.array(image) / 255.0  # Normalize
+    image = np.expand_dims(image, axis=0)  # Add batch dimension
+    return image
+
+@app.route("/predict", methods=["POST"])
+def predict():
+    if "file" not in request.files:
+        return jsonify({"error": "No file uploaded"}), 400
+    file = request.files["file"]
+    image = Image.open(io.BytesIO(file.read()))
+    processed_image = preprocess_image(image)
+    
+    # Make prediction
+    prediction = model.predict(processed_image)
+    accuracy = np.max(prediction) * 100
+    predicted_class = CLASS_NAMES[np.argmax(prediction)]
+    
+    # Simulating patient details (You can modify this to fetch from a database)
+    patient_id = random.randint(1000, 9999)  # Generate a random patient ID
+    patient_name = f"Patient {random.randint(1, 100)}"
+    patient_age = random.randint(20, 80)  # Random age between 20-80
+    
+    response = {
+        "patient_id": patient_id,
+        "patient_name": patient_name,
+        "age": patient_age,
+        "class": predicted_class,
+        "accuracy": f"{accuracy:.2f}%",
+    }
+    return jsonify(response)
+    
+if __name__ == "__main__":
+    app.run(debug=True)
+
